@@ -13,7 +13,7 @@ class Enemy( Sprite ):
         self.hp = 50  
 
     def draw( self ):
-        super( Enemy, self ).draw()
+        super( Enemy, self ).draw(0)
 
     def take_damage(self, amount):
         self.hp -= amount

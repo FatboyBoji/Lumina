@@ -30,7 +30,7 @@ class Sprite:
         self.IMG = img
         self.DX = 0.5 * 2
         self.look_direction = 1
-        self.change = 0
+        self.moving_animation_num = 0
         self.current_room_index = 0
         self.tile_wall = [ (4, 2), (4, 3), (4, 4), (4, 5), (4, 6), (4, 7), (5, 2), (5, 3), (5, 4), (5, 7)]
         self.tile_boxes = [ (4,0), (4,1), (5,0), (5,1) ]
@@ -40,15 +40,16 @@ class Sprite:
         self.fired_shoot = None
         self.last_epee = 0
         self.epee = None
-        self.last_dir = "x-"
+        self.last_dir = "y-"
 
-    def draw(self):
+    def draw(self, frame_index):
         pyxel.blt(
-            self.Pos.Location.X, 
-            self.Pos.Location.Y, 
-            self.IMG, 
-            (self.Idx + self.change & 31) * self.Pos.Size.X, 
-            (self.Idx + self.change >> 5) * self.Pos.Size.Y, 
-            self.look_direction * self.Pos.Size.X, 
-            self.Pos.Size.Y, 0)
+            self.Pos.Location.X,
+            self.Pos.Location.Y,
+            self.IMG,
+            (self.Idx + frame_index & 31) * self.Pos.Size.X,
+            (self.Idx + frame_index >> 5) * self.Pos.Size.Y,
+            self.look_direction * self.Pos.Size.X,
+            self.Pos.Size.Y, 0
+        )
         #pyxel.blt(16-4,32,0,32,80,16,16,0)            #32,72

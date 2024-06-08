@@ -93,29 +93,29 @@ class App:
     def room_change(self):
         player_x = self.PlayerM.Pos.Location.X
         player_y = self.PlayerM.Pos.Location.Y
+        self.new_room = False
 
-        if player_x >= pyxel.width - 1:  
-            if self.current_room_index > len(self.room_coordinates):
-                self.current_room_index = len(self.room_coordinates)   
-            self.current_room_index += 1
+        if player_x >= pyxel.width - 1:
+            self.current_room_index = min(self.current_room_index + 1, len(self.room_coordinates) - 1)
             self.PlayerM.Pos.Location.X = 0
-            self.spawn_enemies()
-            self.spawn_boxes()
-            self.spawn_grass()
-            self.spawn_treasure()
-            self.spawn_potion()
+            self.new_room = True
 
-
-        if player_x < 0 - 11 and player_y <= 32:  
-            self.current_room_index -= 1
-            if self.current_room_index < 0:
-                self.current_room_index = 0  
+        elif player_x < -11 and player_y <= 32:
+            self.current_room_index = max(self.current_room_index - 1, 0)
             self.PlayerM.Pos.Location.X = pyxel.width - TILE_SIZE
-            self.spawn_enemies()
-            self.spawn_boxes()
-            self.spawn_grass()
-            self.spawn_treasure()
-            self.spawn_potion()
+            self.new_room = True
+
+        if self.new_room:
+            self.spawn_entities()
+
+
+    def spawn_entities(self):
+        self.spawn_enemies()
+        self.spawn_boxes()
+        self.spawn_grass()
+        self.spawn_treasure()
+        self.spawn_potion()
+
 
 
     def spawn_potion( self ):

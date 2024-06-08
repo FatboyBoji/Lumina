@@ -13,7 +13,7 @@ class Potion( Sprite ):
         super( Potion, self).__init__( idx, pos, img, app)
 
     def draw( self ):
-        super( Potion, self ).draw()
+        super( Potion, self ).draw(0)
 
 
 class treasure( Sprite ):
@@ -21,7 +21,7 @@ class treasure( Sprite ):
         super( treasure, self).__init__( idx, pos, img, app)
 
     def draw( self ):
-        super( treasure, self ).draw()
+        super( treasure, self ).draw(0)
 
 
 class Grass( Sprite ):
@@ -29,7 +29,7 @@ class Grass( Sprite ):
         super( Grass, self).__init__( idx, pos, img, app)
 
     def draw( self ):
-        super( Grass, self ).draw()
+        super( Grass, self ).draw(0)
 
 
 class Box( Sprite ):
@@ -37,4 +37,22 @@ class Box( Sprite ):
         super( Box, self).__init__( idx, pos, img, app)
 
     def draw( self ):
-        super( Box, self ).draw()      
+        super( Box, self ).draw(0)      
+
+"""
+sprite:
+    maybe we changge sprite, because it has to many attributes of player and other classes.
+
+portal:
+    want to add the entity portal. 
+    should have different atributes, 
+
+world
+
+movement of enemy
+
+Bugfixes:
+    shots fired - new.room = True
+    walk collision should be fixed or changed
+
+"""

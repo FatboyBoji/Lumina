@@ -13,19 +13,32 @@ class Player( Sprite ):
     def __init__( self, idx, pos, img, app, col ):
         super( Player, self).__init__( idx, pos, img, app )
         self.Col = col
+        #self.moving_animation_num = 3
         self.max_health = 5  # 5 hearts max
         self.current_health = self.max_health * 2 
         self.last_damage_time = 0
         self.shot_list = []
         self.last_shot_time = 0  
         self.shot_cooldown = 0.5 
+    
+        self.walking_frames = {
+            "x+": [0, 1, 2],  # Frames for walking right
+            "x-": [0, 1, 2],  # Frames for walking left
+            "y+": [3, 4, 5],  # Frames for walking up
+            "y-": [3, 4, 5]  # Frames for walking down
+        }
+        self.current_frame_index = 0
+        self.animation_speed = 0.2  # Time in seconds per frame
+        self.last_animation_time = time.time()
 
     def draw(self):
-        super( Player, self).draw()  
+        current_frame = self.walking_frames[self.last_dir][self.current_frame_index]
+        super(Player, self).draw(current_frame)  
         pyxel.rect(0,128,128,8,0)        #pyxel.rect(8,129,16*2+8,7,11)
         pyxel.text(16 * 4, 16 * 8+2, "score: ", 6)
         self.draw_hp_bar()
         self.fire_gun() 
+        self.check_look_direction()
         if self.epee is not None and time.time() - self.last_epee < 0.2:
             pyxel.rect(self.epee.Location.X, self.epee.Location.Y, self.epee.Size.X, self.epee.Size.Y, 8)  
         if self.epee is not None and time.time() - self.last_epee < 0.2:
@@ -33,6 +46,108 @@ class Player( Sprite ):
             #pyxel.blt(self.epee.Location.X, self.epee.Location.Y,0,32,80,16,16,0)
         #pyxel.rect(self.Col.Location.X+1.5, self.Col.Location.Y+1.5, self.Col.Size.X, self.Col.Size.Y, 12)
         
+    def check_look_direction( self ):
+        if self.last_dir == "y-":
+            self.moving_animation_num = 3
+        if self.last_dir == "y+":
+            self.moving_animation_num = 3
+        if self.last_dir == "x-":
+            self.moving_animation_num = 0
+        if self.last_dir == "x+":
+            self.moving_animation_num = 0
+
+    def key(self):
+        is_moving = False
+        current_time = time.time()
+        
+        if pyxel.btn(pyxel.KEY_W):  # move up
+            new_Y = self.Pos.Location.Y - self.DX
+            self.last_dir = "y+"
+            if not self.check_tile_collision(self.Pos.Location.X, new_Y, "up"):
+                self.Pos.Location.Y = new_Y
+                is_moving = True
+
+        if pyxel.btn(pyxel.KEY_A):  # move left
+            new_X = self.Pos.Location.X - self.DX
+            self.last_dir = "x-"
+            self.look_direction = +1
+            if not self.check_tile_collision(new_X, self.Pos.Location.Y, "left"):
+                self.Pos.Location.X = new_X
+                is_moving = True
+
+        if pyxel.btn(pyxel.KEY_D):  # move right
+            new_X = self.Pos.Location.X + self.DX
+            self.last_dir = "x+"
+            self.look_direction = -1
+            if not self.check_tile_collision(new_X, self.Pos.Location.Y, "right"):
+                self.Pos.Location.X = new_X
+                is_moving = True
+
+        if pyxel.btn(pyxel.KEY_S):  # move down
+            new_Y = self.Pos.Location.Y + self.DX
+            self.last_dir = "y-"
+            if not self.check_tile_collision(self.Pos.Location.X, new_Y, "down"):
+                self.Pos.Location.Y = new_Y
+                is_moving = True
+        
+        if is_moving and current_time - self.last_animation_time >= self.animation_speed:
+            self.current_frame_index = (self.current_frame_index + 1) % len(self.walking_frames[self.last_dir])
+            self.last_animation_time = current_time
+
+        if pyxel.btn(pyxel.KEY_SPACE):
+            self.attack()
+        # KEY_2 is already used in fire_shot()
+        if pyxel.btn(pyxel.KEY_UP):
+            self.last_dir = "y+"
+        if pyxel.btn(pyxel.KEY_DOWN):
+            self.last_dir = "y-"
+        if pyxel.btn(pyxel.KEY_RIGHT):
+            self.look_direction = -1
+            self.last_dir = "x+"
+        if pyxel.btn(pyxel.KEY_LEFT):
+            self.look_direction = 1
+            self.last_dir = "x-"
+        if pyxel.btn(pyxel.KEY_3):
+            if self.moving_animation_num == 0:
+                self.moving_animation_num = 2
+            else:
+                self.moving_animation_num = 0
+
+    def get_tile(self, tile_x, tile_y):
+        offset_x = self.app.room_coordinates[self.app.current_room_index][0]
+        offset_y = self.app.room_coordinates[self.app.current_room_index][1]
+        return pyxel.tilemaps[0].pget(tile_x + offset_x, tile_y + offset_y)
+
+    def check_tile_collision(self, new_x, new_y, direction):
+        if direction == "left":
+            tile_x = math.floor(new_x / TILE_SIZE * 2)
+            tile_y = math.floor(new_y / TILE_SIZE * 2)
+            tile_x2 = tile_x
+            tile_y2 = math.ceil(new_y / TILE_SIZE * 2 + 1)
+        elif direction == "right":
+            tile_x = math.ceil(new_x / TILE_SIZE * 2 + 1)
+            tile_y = math.floor(new_y / TILE_SIZE * 2)
+            tile_x2 = tile_x
+            tile_y2 = math.ceil(new_y / TILE_SIZE * 2 + 1)
+        elif direction == "up":
+            tile_x = math.floor(new_x / TILE_SIZE * 2)
+            tile_y = math.floor(new_y / TILE_SIZE * 2)
+            tile_x2 = math.ceil(new_x / TILE_SIZE * 2 + 1)
+            tile_y2 = tile_y
+        elif direction == "down":
+            tile_x = math.floor(new_x / TILE_SIZE * 2)
+            tile_y = math.ceil(new_y / TILE_SIZE * 2 + 1)
+            tile_x2 = math.ceil(new_x / TILE_SIZE * 2 + 1)
+            tile_y2 = tile_y
+
+        mid_tile_x = (tile_x + tile_x2) // 2
+        mid_tile_y = (tile_y + tile_y2) // 2
+
+        tile = self.get_tile(tile_x, tile_y)
+        tile2 = self.get_tile(tile_x2, tile_y2)
+        tile3 = self.get_tile(mid_tile_x, mid_tile_y)
+        
+        return tile in self.tile_wall or tile2 in self.tile_wall or tile3 in self.tile_wall
 
     def draw_laser( self ):
         if self.last_dir == "y-" and self.look_direction == 1:  # Down, left
@@ -94,86 +209,6 @@ class Player( Sprite ):
                 if current_time - self.last_damage_time >= 1:
                     self.heal(3)
                     self.app.potion.remove(potion)  
-
-
-    def key(self):
-        if pyxel.btn(pyxel.KEY_W):  # move up
-            new_Y = self.Pos.Location.Y - self.DX
-            self.last_dir = "y+"
-            # box logic?
-            if not self.check_tile_collision(self.Pos.Location.X, new_Y, "up"):
-                self.Pos.Location.Y = new_Y
-        if pyxel.btn(pyxel.KEY_A):  # move left
-            new_X = self.Pos.Location.X - self.DX
-            self.last_dir = "x-"
-            self.look_direction = +1
-            if not self.check_tile_collision(new_X, self.Pos.Location.Y, "left"):
-                self.Pos.Location.X = new_X
-        if pyxel.btn(pyxel.KEY_D):  # move right
-            new_X = self.Pos.Location.X + self.DX
-            self.last_dir = "x+"
-            self.look_direction = -1
-            if not self.check_tile_collision(new_X, self.Pos.Location.Y, "right"):
-                self.Pos.Location.X = new_X
-        if pyxel.btn(pyxel.KEY_S):  # move down
-            new_Y = self.Pos.Location.Y + self.DX
-            self.last_dir = "y-"
-            if not self.check_tile_collision(self.Pos.Location.X, new_Y, "down"):
-                self.Pos.Location.Y = new_Y
-        if pyxel.btn(pyxel.KEY_SPACE):
-            self.attack()
-        # KEY_2 is already used in fire_shot()
-        if pyxel.btn(pyxel.KEY_UP):
-            self.last_dir = "y+"
-        if pyxel.btn(pyxel.KEY_DOWN):
-            self.last_dir = "y-"
-        if pyxel.btn(pyxel.KEY_RIGHT):
-            self.look_direction = -1
-            self.last_dir = "x+"
-        if pyxel.btn(pyxel.KEY_LEFT):
-            self.look_direction = 1
-            self.last_dir = "x-"
-        if pyxel.btn(pyxel.KEY_3):
-            if self.change == 0:
-                self.change = 2
-            else:
-                self.change = 0
-
-    def get_tile(self, tile_x, tile_y):
-        offset_x = self.app.room_coordinates[self.app.current_room_index][0]
-        offset_y = self.app.room_coordinates[self.app.current_room_index][1]
-        return pyxel.tilemaps[0].pget(tile_x + offset_x, tile_y + offset_y)
-
-    def check_tile_collision(self, new_x, new_y, direction):
-        if direction == "left":
-            tile_x = math.floor(new_x / TILE_SIZE * 2)
-            tile_y = math.floor(new_y / TILE_SIZE * 2)
-            tile_x2 = tile_x
-            tile_y2 = math.ceil(new_y / TILE_SIZE * 2 + 1)
-        elif direction == "right":
-            tile_x = math.ceil(new_x / TILE_SIZE * 2 + 1)
-            tile_y = math.floor(new_y / TILE_SIZE * 2)
-            tile_x2 = tile_x
-            tile_y2 = math.ceil(new_y / TILE_SIZE * 2 + 1)
-        elif direction == "up":
-            tile_x = math.floor(new_x / TILE_SIZE * 2)
-            tile_y = math.floor(new_y / TILE_SIZE * 2)
-            tile_x2 = math.ceil(new_x / TILE_SIZE * 2 + 1)
-            tile_y2 = tile_y
-        elif direction == "down":
-            tile_x = math.floor(new_x / TILE_SIZE * 2)
-            tile_y = math.ceil(new_y / TILE_SIZE * 2 + 1)
-            tile_x2 = math.ceil(new_x / TILE_SIZE * 2 + 1)
-            tile_y2 = tile_y
-
-        mid_tile_x = (tile_x + tile_x2) // 2
-        mid_tile_y = (tile_y + tile_y2) // 2
-
-        tile = self.get_tile(tile_x, tile_y)
-        tile2 = self.get_tile(tile_x2, tile_y2)
-        tile3 = self.get_tile(mid_tile_x, mid_tile_y)
-        
-        return tile in self.tile_wall or tile2 in self.tile_wall or tile3 in self.tile_wall
     
     def move_box(self, direction):
         for box in self.app.Boxes:
@@ -224,8 +259,8 @@ class Player( Sprite ):
     def fire_gun(self):
         current_time = pyxel.frame_count / 60
         # If the player enters a new room, clear the shot list
-        """if self.app.new_room:
-            self.shot_list = []"""
+        if self.app.new_room:
+            self.shot_list = []
 
         if pyxel.btn(pyxel.KEY_2) and current_time - self.last_shot_time >= self.shot_cooldown:
             self.shot_list.append({"direction": self.last_dir, "x": self.Pos.Location.X + 8, "y": self.Pos.Location.Y + 9})
