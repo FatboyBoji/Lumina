@@ -30,7 +30,6 @@ class Sprite:
         self.IMG = img
         self.DX = 0.5 * 2
         self.look_direction = 1
-        self.moving_animation_num = 0
         self.current_room_index = 0
         self.tile_wall = [ (4, 2), (4, 3), (4, 4), (4, 5), (4, 6), (4, 7), (5, 2), (5, 3), (5, 4), (5, 7)]
         self.tile_boxes = [ (4,0), (4,1), (5,0), (5,1) ]

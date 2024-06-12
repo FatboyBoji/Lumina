@@ -13,14 +13,13 @@ class Player( Sprite ):
     def __init__( self, idx, pos, img, app, col ):
         super( Player, self).__init__( idx, pos, img, app )
         self.Col = col
-        #self.moving_animation_num = 3
+        self.score = 0
         self.max_health = 5  # 5 hearts max
         self.current_health = self.max_health * 2 
         self.last_damage_time = 0
         self.shot_list = []
         self.last_shot_time = 0  
         self.shot_cooldown = 0.5 
-    
         self.walking_frames = {
             "x+": [0, 1, 2],  # Frames for walking right
             "x-": [0, 1, 2],  # Frames for walking left
@@ -30,34 +29,30 @@ class Player( Sprite ):
         self.current_frame_index = 0
         self.animation_speed = 0.2  # Time in seconds per frame
         self.last_animation_time = time.time()
+        self.is_moving = False
 
     def draw(self):
-        current_frame = self.walking_frames[self.last_dir][self.current_frame_index]
+        if self.is_moving == False:
+            if self.last_dir in ["y-", "y+"]:
+                current_frame = 3
+            elif self.last_dir in ["x-", "x+"]:
+                current_frame = 0
+        if self.is_moving == True:
+            current_frame = self.walking_frames[self.last_dir][self.current_frame_index]
         super(Player, self).draw(current_frame)  
         pyxel.rect(0,128,128,8,0)        #pyxel.rect(8,129,16*2+8,7,11)
-        pyxel.text(16 * 4, 16 * 8+2, "score: ", 6)
+        pyxel.text(16 * 4, 16 * 8 + 2, f"score: {self.score}", 6)
         self.draw_hp_bar()
         self.fire_gun() 
-        self.check_look_direction()
         if self.epee is not None and time.time() - self.last_epee < 0.2:
             pyxel.rect(self.epee.Location.X, self.epee.Location.Y, self.epee.Size.X, self.epee.Size.Y, 8)  
         if self.epee is not None and time.time() - self.last_epee < 0.2:
             self.draw_laser()
             #pyxel.blt(self.epee.Location.X, self.epee.Location.Y,0,32,80,16,16,0)
         #pyxel.rect(self.Col.Location.X+1.5, self.Col.Location.Y+1.5, self.Col.Size.X, self.Col.Size.Y, 12)
-        
-    def check_look_direction( self ):
-        if self.last_dir == "y-":
-            self.moving_animation_num = 3
-        if self.last_dir == "y+":
-            self.moving_animation_num = 3
-        if self.last_dir == "x-":
-            self.moving_animation_num = 0
-        if self.last_dir == "x+":
-            self.moving_animation_num = 0
 
     def key(self):
-        is_moving = False
+        self.is_moving = False
         current_time = time.time()
         
         if pyxel.btn(pyxel.KEY_W):  # move up
@@ -65,7 +60,8 @@ class Player( Sprite ):
             self.last_dir = "y+"
             if not self.check_tile_collision(self.Pos.Location.X, new_Y, "up"):
                 self.Pos.Location.Y = new_Y
-                is_moving = True
+                self.Col.Location.Y -= self.DX
+                self.is_moving = True
 
         if pyxel.btn(pyxel.KEY_A):  # move left
             new_X = self.Pos.Location.X - self.DX
@@ -73,7 +69,8 @@ class Player( Sprite ):
             self.look_direction = +1
             if not self.check_tile_collision(new_X, self.Pos.Location.Y, "left"):
                 self.Pos.Location.X = new_X
-                is_moving = True
+                self.Col.Location.X -= self.DX
+                self.is_moving = True
 
         if pyxel.btn(pyxel.KEY_D):  # move right
             new_X = self.Pos.Location.X + self.DX
@@ -81,16 +78,18 @@ class Player( Sprite ):
             self.look_direction = -1
             if not self.check_tile_collision(new_X, self.Pos.Location.Y, "right"):
                 self.Pos.Location.X = new_X
-                is_moving = True
+                self.Col.Location.X += self.DX
+                self.is_moving = True
 
         if pyxel.btn(pyxel.KEY_S):  # move down
             new_Y = self.Pos.Location.Y + self.DX
             self.last_dir = "y-"
             if not self.check_tile_collision(self.Pos.Location.X, new_Y, "down"):
                 self.Pos.Location.Y = new_Y
-                is_moving = True
+                self.Col.Location.Y += self.DX
+                self.is_moving = True
         
-        if is_moving and current_time - self.last_animation_time >= self.animation_speed:
+        if self.is_moving and current_time - self.last_animation_time >= self.animation_speed:
             self.current_frame_index = (self.current_frame_index + 1) % len(self.walking_frames[self.last_dir])
             self.last_animation_time = current_time
 
@@ -147,6 +146,10 @@ class Player( Sprite ):
         tile2 = self.get_tile(tile_x2, tile_y2)
         tile3 = self.get_tile(mid_tile_x, mid_tile_y)
         
+        for treasure in self.app.Treasure:
+            if self.Col.intersects_With(treasure.Pos):
+                return True
+    
         return tile in self.tile_wall or tile2 in self.tile_wall or tile3 in self.tile_wall
 
     def draw_laser( self ):
@@ -185,6 +188,7 @@ class Player( Sprite ):
 
     def take_damage(self, amount):
         if self.current_health <= 10:
+            self.score -= 5
             self.current_health = max(0, self.current_health - amount)
 
     def heal(self, amount):
@@ -195,21 +199,21 @@ class Player( Sprite ):
 
     def check_collision_with_enemies(self):
         current_time = time.time()
-        for enemy in self.app.Enemy:
+        for enemy in self.app.Enemies:
             if self.Pos.intersects_With(enemy.Pos):
                 if current_time - self.last_damage_time >= 1:
                     self.take_damage(1)
                     self.last_damage_time = current_time
     
     def check_collision_with_potion(self):
-        current_time = time.time()
-        for potion in self.app.potion[:]:  
+        for potion in self.app.Potions[:]:
             if self.Pos.intersects_With(potion.Pos):
-                self.app.visited_P += 1             # first attempt to delete used potions
-                if current_time - self.last_damage_time >= 1:
-                    self.heal(3)
-                    self.app.potion.remove(potion)  
-    
+                self.heal(3)
+                self.app.potion_collected(potion.ID)
+
+    def check_collision_with_treasure(self):
+        self.app.check_collision_with_treasure()
+
     def move_box(self, direction):
         for box in self.app.Boxes:
             if self.Pos.intersects_With(box.Pos):
@@ -290,12 +294,3 @@ class Player( Sprite ):
             if self.app.check_enemy_hits( Rect( shot["x"], shot["y"], 4,4)):
                 self.shot_list.pop(i)
                 continue
-
-            # if it hits a wall it should delete the shot
-            """tile_x = shot["x"] // TILE_SIZE + 1
-            tile_y = shot["y"] // TILE_SIZE + 1
-            print(f"Tile position: ({tile_x}, {tile_y})")  # Debug statement
-            if self.get_tile(tile_x, tile_y) in self.tile_wall:
-                self.shot_list.pop(i)
-                print(f"Shot hit a wall, deleting: {i}")  # Debug statement
-                continue"""
