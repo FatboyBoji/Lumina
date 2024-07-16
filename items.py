@@ -1,55 +1,52 @@
 from sprite import Sprite
+import pyxel
 
-
-MAP_WITDH = 8
+MAP_WIDTH = 8
 MAP_LENGTH = 8
 TILE_SIZE = 16
-
-
 
 
 class Potion(Sprite):
     def __init__(self, idx, pos, img, potion_id, app):
         super(Potion, self).__init__(idx, pos, img, app)
         self.ID = potion_id
-        self.collected = False  
+        self.collected = False
 
     def draw(self):
         super(Potion, self).draw(0)
 
 
-class Treasure(Sprite):
-    def __init__(self, idx, pos, img, treasure_id, app):
-        super(Treasure, self).__init__(idx, pos, img, app)
-        self.ID = treasure_id
-        self.collected = False  
+class Grass(Sprite):
+    def __init__(self, idx, pos, img, app):
+        super(Grass, self).__init__(idx, pos, img, app)
 
     def draw(self):
-        super(Treasure, self).draw(0)
+        super(Grass, self).draw(0)
 
 
-class Grass( Sprite ):
-    def __init__( self, idx, pos, img, app ):
-        super( Grass, self).__init__( idx, pos, img, app)
+class Box(Sprite):
+    def __init__(self, idx, pos, img, box_id, app):
+        super(Box, self).__init__(idx, pos, img, app)
+        self.ID = box_id
+        self.moved = False  # Assume we track if the box has been moved
 
-    def draw( self ):
-        super( Grass, self ).draw(0)
+    def draw(self):
+        super(Box, self).draw(0)
 
+    def save_position(self):
+        return self.Pos.Location.X / TILE_SIZE, self.Pos.Location.Y / TILE_SIZE
 
-class Box( Sprite ):
-    def __init__( self, idx, pos, img, app ):
-        super( Box, self).__init__( idx, pos, img, app)
+    def load_position(self, position):
+        self.Pos.Location.X, self.Pos.Location.Y = position[0] * TILE_SIZE, position[1] * TILE_SIZE
 
-    def draw( self ):
-        super( Box, self ).draw(0)      
 
 """
 sprite:
-    maybe we changge sprite, because it has to many attributes of player and other classes.
+    maybe we change sprite, because it has to many attributes of player and other classes.
 
 portal:
     want to add the entity portal. 
-    should have different atributes, 
+    should have different attributes, 
 
 world
 

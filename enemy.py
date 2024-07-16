@@ -1,26 +1,404 @@
 from sprite import Sprite, Rect
+from typing import Any
 import pyxel
+import random
+import math
+import heapq
 
-
-MAP_WITDH = 8
+MAP_WIDTH = 8
 MAP_LENGTH = 8
 TILE_SIZE = 16
 
 
-class Enemy( Sprite ):
-    def __init__( self, idx, pos, img, id, app ):
-        super( Enemy, self).__init__( idx, pos, img, app)
+class Enemy(Sprite):
+    def __init__(self, idx: int, pos: Rect, img: int, id: int, app: Any) -> None:
+        """
+        we initialise every enemy and all of his attributes
+        :param idx:
+        :param pos:
+        :param img:
+        :param id:
+        :param app:
+        """
+        super(Enemy, self).__init__(idx, pos, img, app)
         self.ID = id
-        self.hp = 50  
-        self.is_dead = False  
+        self.hp = 100
+        self.is_dead = False
+        self.state = 'patrolling'
+        self.direction = (0, -1)  # Initial direction (e.g., moving down)
+        self.speed = 0.1
+        self.change_direction_interval = 60  # Change direction every second (assuming 60 FPS)
+        self.ticks_since_last_direction_change = 0
+        self.chase_distance = 72 + 16
+        self.chase_down, self.chase_up = 0, 0
+        self.alert_timer = 0
+        self.blinker_timer = 0
+        self.path = []
+        self.tilemaps = {
+            0: [
+                [1, 1, 1, 1, 1, 1, 1, 1],
+                [1, 0, 0, 0, 0, 0, 0, 0],
+                [1, 0, 1, 0, 0, 0, 0, 0],
+                [1, 0, 1, 0, 1, 1, 1, 1],
+                [1, 0, 1, 0, 1, 0, 0, 1],
+                [1, 0, 0, 0, 0, 0, 0, 1],
+                [1, 0, 0, 0, 0, 0, 0, 1],
+                [1, 1, 1, 1, 1, 1, 1, 1]
+            ],
+            1: [
+                [1, 1, 1, 1, 1, 1, 1, 1],
+                [0, 0, 1, 0, 0, 0, 0, 0],
+                [0, 0, 1, 0, 0, 0, 0, 1],
+                [0, 0, 1, 0, 0, 0, 0, 0],
+                [0, 0, 1, 1, 0, 0, 0, 1],
+                [0, 0, 1, 1, 1, 0, 0, 1],
+                [0, 0, 0, 0, 0, 0, 0, 1],
+                [1, 1, 1, 1, 1, 1, 1, 1]
+            ],
+            2: [
+                [1, 1, 1, 1, 1, 1, 1, 1],
+                [0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0],
+                [1, 1, 1, 0, 1, 0, 0, 1],
+                [0, 0, 0, 0, 0, 0, 0, 1],
+                [0, 0, 0, 0, 0, 0, 0, 1],
+                [0, 0, 0, 0, 0, 0, 0, 1],
+                [1, 1, 1, 1, 1, 1, 1, 1]
+            ],
+            3: [
+                [1, 1, 1, 1, 1, 1, 1, 1],
+                [0, 0, 1, 0, 0, 0, 0, 0],
+                [0, 0, 1, 0, 0, 0, 0, 0],
+                [0, 0, 1, 0, 0, 0, 0, 0],
+                [0, 0, 1, 0, 0, 0, 0, 0],
+                [0, 0, 1, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0],
+                [1, 1, 1, 1, 1, 1, 1, 1]
+            ],
+            4: [
+                [1, 1, 1, 1, 1, 1, 1, 1],
+                [0, 0, 0, 0, 0, 0, 0, 1],
+                [0, 0, 0, 0, 0, 0, 0, 1],
+                [1, 0, 0, 0, 0, 0, 0, 1],
+                [1, 0, 0, 0, 0, 0, 0, 1],
+                [1, 0, 0, 0, 0, 1, 0, 1],
+                [1, 0, 0, 0, 0, 1, 0, 1],
+                [1, 1, 1, 1, 1, 1, 1, 1]
+            ],
+            # Add more tilemaps as needed
+        }
 
+    def draw(self) -> None:
+        super(Enemy, self).draw(0)
+        self.draw_hp_bar()
+        self.draw_alert()
+        # self.draw_line_to_player()
+        if self.state == "chasing":
+            self.chase()
 
-    def draw( self ):
-        super( Enemy, self ).draw(0)
+    def draw_hp_bar(self) -> None:
+        hp_bar_width = 16
+        hp_percentage = self.hp / 100
+        hp_width = hp_bar_width * hp_percentage
+        pyxel.rect(self.Pos.Location.X, self.Pos.Location.Y - 2, hp_bar_width, 2, 14)
+        pyxel.rect(self.Pos.Location.X, self.Pos.Location.Y - 2, hp_width, 2, 8)
 
-    def take_damage(self, amount):
+    def draw_alert(self) -> None:
+        if self.alert_timer > 0:
+            enemy_mid_x = self.Pos.Location.X + TILE_SIZE // 2
+            enemy_mid_y = self.Pos.Location.Y - TILE_SIZE // 2
+
+            # Toggle visibility based on blinker timer
+            if self.blinker_timer % 20 < 10:  # Change the value to adjust blink speed
+                pyxel.text(enemy_mid_x + 8, enemy_mid_y, "!", pyxel.COLOR_RED)
+
+    def take_damage(self, amount: int) -> None:
         self.hp -= amount
         if self.hp <= 0:
+            self.hp = 0
             self.app.Enemies.remove(self)
-            self.is_dead = True  
-            self.app.enemy_died(self.ID) 
+            self.is_dead = True
+            self.app.enemy_died(self.ID)
+
+    def save_position(self) -> tuple[float, float]:
+        return self.Pos.Location.X / TILE_SIZE, self.Pos.Location.Y / TILE_SIZE
+
+    def load_position(self, pos) -> None:
+        self.Pos.Location.X, self.Pos.Location.Y = pos[0] * TILE_SIZE, pos[1] * TILE_SIZE
+
+    def heuristic(self, a, b):
+        return abs(a[0] - b[0]) + abs(a[1] - b[1])
+
+    def a_star(self, start, goal, grid):
+        open_set = []
+        heapq.heappush(open_set, (0, start))
+        came_from = {}
+        g_score = {start: 0}
+        f_score = {start: self.heuristic(start, goal)}
+        directions = [(1, 0), (0, 1), (-1, 0), (0, -1)]  # Right, Down, Left, Up
+
+        while open_set:
+            current = heapq.heappop(open_set)[1]
+
+            if current == goal:
+                path = []
+                while current in came_from:
+                    path.append(current)
+                    current = came_from[current]
+                path.reverse()
+                return path
+
+            for direction in directions:
+                neighbor = (current[0] + direction[0], current[1] + direction[1])
+                tentative_g_score = g_score[current] + 1
+
+                if 0 <= neighbor[0] < len(grid) and 0 <= neighbor[1] < len(grid[0]) and not grid[int(neighbor[1])][int(neighbor[0])]:
+                    if tentative_g_score < g_score.get(neighbor, float('inf')):
+                        came_from[neighbor] = current
+                        g_score[neighbor] = tentative_g_score
+                        f_score[neighbor] = tentative_g_score + self.heuristic(neighbor, goal)
+                        heapq.heappush(open_set, (f_score[neighbor], neighbor))
+
+        return []
+
+    def draw_line_to_player(self) -> None:
+        """
+        here draw a line from the midpoint of a player to the midpoints of all enemies
+        :return: None
+        """
+        player_pos = self.app.PlayerM.Pos.Location
+        player_mid_x = player_pos.X + TILE_SIZE // 2
+        player_mid_y = player_pos.Y + TILE_SIZE // 2
+
+        enemy__x = self.Pos.Location.X + TILE_SIZE
+        enemy__y = self.Pos.Location.Y
+
+        start = (enemy__x // TILE_SIZE, enemy__y // TILE_SIZE)
+        goal = (player_mid_x // TILE_SIZE, player_mid_y // TILE_SIZE)
+        grid = self.tilemaps[self.app.current_room_index]
+
+        # path = self.a_star(start, goal, grid)
+
+        if len(self.path) - 1 > 0:
+            a, b = self.path[0]
+            y, z = self.path[-1]
+            pyxel.line(enemy__x - TILE_SIZE, enemy__y, a * TILE_SIZE, b * TILE_SIZE, pyxel.COLOR_DARK_BLUE)  # as cosmetic, just ignore
+
+            for i in range(len(self.path) - 1):
+                    x1, y1 = self.path[i]
+                    x2, y2 = self.path[i + 1]
+                    pyxel.line(x1 * TILE_SIZE, y1 * TILE_SIZE, x2 * TILE_SIZE, y2 * TILE_SIZE, pyxel.COLOR_ORANGE)
+
+            self.shortest_way_to_start(enemy__x - TILE_SIZE, enemy__y)
+
+    def shortest_way_to_start(self, start_x, start_y):
+        a, b = self.path[0]
+        y, z = self.path[1]
+        closest_point = self.closest_point_on_segment(a * TILE_SIZE, b * TILE_SIZE, y * TILE_SIZE, z * TILE_SIZE, start_x, start_y)
+        pyxel.line(start_x, start_y, closest_point[0], closest_point[1], pyxel.COLOR_RED)
+
+    def closest_point_on_segment(self, x1, y1, x2, y2, px, py):
+        """
+        Find the closest point on the line segment from (x1, y1) to (x2, y2) to the point (px, py).
+        """
+        dx = x2 - x1
+        dy = y2 - y1
+        t = ((px - x1) * dx + (py - y1) * dy) / (dx ** 2 + dy ** 2)
+        t = max(0, min(1, t))
+        return x1 + t * dx, y1 + t * dy
+
+    def update(self) -> None:
+        """
+        here we manage the state of every enemy and switch between them
+        :return: None
+        """
+        self.update_path_to_player()
+        if self.state == 'patrolling':
+            self.patrol()
+            if self.player_within_chase_distance() and self.can_see_player():
+                self.state = 'alert'
+                self.alert_timer = 60  # Display "!" for 1 second (assuming 60 FPS)
+                self.blinker_timer = 0  # Reset blinker timer
+        elif self.state == 'chasing':
+            self.chase()
+            """if not self.player_within_chase_distance() or not self.can_see_player():
+                self.state = 'patrolling'"""
+        elif self.state == 'alert':
+            self.alert_timer -= 1
+            self.blinker_timer += 1  # Increment blinker timer
+            if self.alert_timer <= 0:
+                self.state = 'chasing'
+        self.ticks_since_last_direction_change += 1
+
+    def update_path_to_player(self):
+        player_pos = self.app.PlayerM.Pos.Location
+        player_mid_x = player_pos.X + TILE_SIZE // 2
+        player_mid_y = player_pos.Y + TILE_SIZE // 2
+
+        enemy_x = self.Pos.Location.X
+        enemy_y = self.Pos.Location.Y
+
+        if player_mid_x < enemy_x and player_mid_y > enemy_y:
+            print("case 1")
+            self.chase_down = 16
+            self.chase_up = 0
+        elif player_mid_x > enemy_x and player_mid_y < enemy_y:
+            print("case 2")
+            self.chase_down = 0
+            self.chase_up = 16
+        elif player_mid_x > enemy_x and player_mid_y > enemy_y:
+            print("case 3")
+            self.chase_down = 16
+            self.chase_up = 0
+        elif player_mid_x < enemy_x and player_mid_y < enemy_y:
+            print("case 4")
+            self.chase_down = 16
+            self.chase_up = 16
+        else:
+            print("case 5")
+            self.chase_down = 0
+            self.chase_up = 0
+
+        adjusted_enemy_x = enemy_x + self.chase_down
+        adjusted_enemy_y = enemy_y + self.chase_up
+
+        start = (adjusted_enemy_x // TILE_SIZE, adjusted_enemy_y // TILE_SIZE)
+        goal = (player_mid_x // TILE_SIZE, player_mid_y // TILE_SIZE)
+        grid = self.tilemaps[self.app.current_room_index]
+
+        self.path = self.a_star(start, goal, grid)
+    def patrol(self) -> None:
+        """
+        right now: is going in random directions and random ways
+        later    : want to implement routes to patrol or add different patrol enemies
+        :return: None
+        """
+        if self.ticks_since_last_direction_change >= self.change_direction_interval:
+            self.change_direction()
+            self.ticks_since_last_direction_change = 0
+
+        new_pos = (self.Pos.Location.X + self.direction[0] * self.speed,
+                   self.Pos.Location.Y + self.direction[1] * self.speed)
+
+        if not self.check_tile_collision(new_pos[0], new_pos[1], self.get_direction_string()):
+            self.Pos.Location.X, self.Pos.Location.Y = new_pos
+
+    def get_direction_string(self) -> str:
+        """
+        Convert the direction tuple to a string representation.
+        """
+        if self.direction == (1, 0):
+            return "right"
+        if self.direction == (-1, 0):
+            return "left"
+        if self.direction == (0, 1):
+            return "down"
+        if self.direction == (0, -1):
+            return "up"
+        return ""
+
+    def change_direction(self):
+        """
+        randomises direction for the patrol methode
+        :return: None
+        """
+        directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]  # Down, Right, Up, Left
+        self.direction = random.choice(directions)
+
+    def chase(self) -> None:
+        """
+        right now: goes after player, very simple. can get stuck
+        later    : maybe change the logic, so the enemy know where a player goes, paths, corridors
+        :return: None
+        """
+        if len(self.path) < 2:
+            return
+
+        pyxel.blt(self.Pos.Location.X, self.Pos.Location.Y, 0, 48, 80, 16, 16, 0)
+
+        current_tile = self.path[0]
+        next_tile = self.path[1]
+
+        current_pos = (current_tile[0] * TILE_SIZE, current_tile[1] * TILE_SIZE)
+        next_pos = (next_tile[0] * TILE_SIZE, next_tile[1] * TILE_SIZE)
+        closest_point = self.closest_point_on_segment(current_pos[0], current_pos[1], next_pos[0], next_pos[1], self.Pos.Location.X, self.Pos.Location.Y)
+
+        # pyxel.circ(closest_point[0],closest_point[1],1,2)
+
+        direction_x = closest_point[0] - self.Pos.Location.X
+        direction_y = closest_point[1] - self.Pos.Location.Y
+
+        distance = math.sqrt(direction_x ** 2 + direction_y ** 2)
+        if distance != 0:
+            direction_x /= distance
+            direction_y /= distance
+
+        new_pos_x = self.Pos.Location.X + direction_x * self.speed
+        new_pos_y = self.Pos.Location.Y + direction_y * self.speed
+
+        # if not self.check_tile_collision(new_pos_x, new_pos_y, self.get_direction_string()):
+        self.Pos.Location.X = new_pos_x
+        self.Pos.Location.Y = new_pos_y
+
+        if distance <= 0.1:
+            if len(self.path) > 1:
+                self.path.pop(0)
+
+    def player_within_chase_distance(self) -> bool:
+        """
+        right now: checks the distance between both left_up_corner of player and enemies
+        later    : maybe check the distance of the line , midpoint_to_midpoint
+        :return: None
+        """
+        player_pos = self.app.PlayerM.Pos.Location
+        distance = math.sqrt((player_pos.X - self.Pos.Location.X) ** 2 + (player_pos.Y - self.Pos.Location.Y) ** 2)
+        return distance <= self.chase_distance
+
+    def can_see_player(self) -> bool:
+        """
+        # Implement line-of-sight check here
+        # Use Bresenham's line algorithm or a similar method to check for obstacles
+        :return: bool
+        """
+        player_pos = self.app.PlayerM.Pos.Location
+        player_mid_x = player_pos.X + TILE_SIZE // 2
+        player_mid_y = player_pos.Y + TILE_SIZE // 2
+
+        enemy_mid_x = self.Pos.Location.X + TILE_SIZE // 2
+        enemy_mid_y = self.Pos.Location.Y + TILE_SIZE // 2
+
+        dx = player_mid_x - enemy_mid_x
+        dy = player_mid_y - enemy_mid_y
+        sx = 1 if dx > 0 else -1
+        sy = 1 if dy > 0 else -1
+        dx = abs(dx)
+        dy = abs(dy)
+        err = dx - dy
+
+        while True:
+            current_x = enemy_mid_x // TILE_SIZE
+            current_y = enemy_mid_y // TILE_SIZE
+            if (current_x, current_y) == (player_mid_x // TILE_SIZE, player_mid_y // TILE_SIZE):
+                # if we see the player here we return true
+                return True
+            if self.line_collision_detection(enemy_mid_x, enemy_mid_y):
+                return False
+            e2 = 2 * err
+            if e2 > -dy:
+                err -= dy
+                enemy_mid_x += sx
+            if e2 < dx:
+                err += dx
+                enemy_mid_y += sy
+
+    def line_collision_detection(self, new_x: any, new_y: any) -> bool:
+        """
+        is the line from midpoint_to_midpoint clear?
+        :param new_x:
+        :param new_y:
+        :return:
+        """
+        tile_x = math.floor(new_x / TILE_SIZE * 2)
+        tile_y = math.floor(new_y / TILE_SIZE * 2)
+        tile = self.get_tile(tile_x, tile_y)
+        return tile in self.tile_wall
