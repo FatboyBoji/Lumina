@@ -99,6 +99,7 @@ class Interface_gui:
         # Check key states and update colors
         for key in self.key_states:
             if pyxel.btn(key):
+                print(key)
                 self.key_states[key] = (True, 2)
                 self.btn_colors[key] = 2
                 self.border_colors[key] = 6  # Change border color to 5 when key is pressed

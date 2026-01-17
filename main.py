@@ -124,10 +124,10 @@ class App:
             self.new_room = True
             self.current_room_index = 0
             pyxel.cls(0)
-            pyxel.bltm(0, 0, 0, 0, 128 * 2, 128, 128)
-            pyxel.text(16 * 1.5, 16 * 4, "Press ENTER to play", 8)
+            pyxel.bltm(0, 0, 0, 0, 128 * 2, 128 + 5 * 16, 128)
+            pyxel.text(16 * 1.5 + 3*16, 16 * 4, "Press ENTER to play", 8)
             if self.text_visible:
-                pyxel.text(16 * 1.5, 16 * 4, "      ENTER        ", self.text_color)
+                pyxel.text(16 * 1.5 + 3*16, 16 * 4, "      ENTER        ", self.text_color)
         else:
             pyxel.cls(0)
             pyxel.bltm(0, 0, 0, self.room_coordinates[self.current_room_index][0] * 8, self.room_coordinates[self.current_room_index][1] * 8, pyxel.width, pyxel.height)
